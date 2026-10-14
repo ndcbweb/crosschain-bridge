@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bridge</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <strong id="bridge-name">Bridge</strong>
+      </div>
+      <button type="button" id="connect" class="btn btn-ghost">Connect wallet</button>
+    </header>
+
+    <main class="wrap">
+      <section class="card" aria-labelledby="bridge-title">
+        <h1 id="bridge-title">Bridge</h1>
+        <p class="muted" id="bridge-sub">Move coins between chains.</p>
+
+        <div class="lane">
+          <label class="field">
+            <span>From</span>
+            <select id="from"></select>
+          </label>
+          <button type="button" id="swap" class="flip" aria-label="Swap from and to">⇅</button>
+          <label class="field">
+            <span>To</span>
+            <select id="to"></select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Asset</span>
+          <select id="asset"></select>
+        </label>
+
+        <label class="field">
+          <span class="field-head">
+            Amount
+            <button type="button" id="max" class="link">Balance: <b id="balance">—</b></button>
+          </span>
+          <input id="amount" inputmode="decimal" placeholder="0.0" autocomplete="off" />
+        </label>
+
+        <label class="field">
+          <span>Recipient</span>
+          <input id="recipient" placeholder="Your connected wallet" spellcheck="false" autocomplete="off" />
+        </label>
+
+        <dl class="quote">
+          <div><dt>You receive</dt><dd id="receive">—</dd></div>
+          <div><dt>Bridge fee</dt><dd id="fee">—</dd></div>
+          <div><dt>Arrives after</dt><dd id="eta">—</dd></div>
+        </dl>
+
+        <p id="message" class="message" role="status" aria-live="polite"></p>
+        <button type="button" id="submit" class="btn btn-primary btn-wide">Connect wallet</button>
+      </section>
+
+      <section class="card" aria-labelledby="history-title">
+        <div class="card-head">
+          <h2 id="history-title">Your transfers</h2>
+          <span class="muted" id="history-hint">Connect a wallet to see them.</span>
+        </div>
+        <ul id="history" class="history"></ul>
+      </section>
+    </main>
+
+    <footer class="foot muted">Relayed by <code id="relayer">—</code></footer>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

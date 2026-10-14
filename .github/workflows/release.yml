@@ -1,0 +1,52 @@
+name: Build, test and publish bundle
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Contracts
+        working-directory: contracts
+        run: |
+          forge install foundry-rs/forge-std --no-git
+          forge test -vv
+
+      - name: Export ABIs and bytecode
+        run: node scripts/export-artifacts.mjs
+
+      - run: bash scripts/bundle.sh
+
+      - name: End-to-end test on two anvil chains
+        run: |
+          (cd server && npm ci)
+          bash test/e2e.sh
+
+      - name: Publish to the "latest" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view latest >/dev/null 2>&1 || \
+            gh release create latest --title "Latest build" --notes "Rolling build of main."
+          gh release upload latest dist/bridge.tar.gz artifacts/nadcab-bridge.json --clobber
+          gh release edit latest --notes "Rolling build of main at ${GITHUB_SHA::7}. bridge.tar.gz is the relayer + bridge site; nadcab-bridge.json has the contract ABIs and bytecode."
