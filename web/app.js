@@ -52,9 +52,20 @@ const chainOf = (chainId) => config.chains.find((chain) => chain.chainId === Num
 
 /* ---------- wallet ---------- */
 
+// EIP-6963: every installed wallet announces itself, so several extensions no longer fight over window.ethereum.
+const announced = new Map();
+window.addEventListener("eip6963:announceProvider", (event) => {
+  const { info, provider: announcedProvider } = event.detail || {};
+  if (info?.uuid && announcedProvider) announced.set(info.uuid, { info, provider: announcedProvider });
+});
+window.dispatchEvent(new Event("eip6963:requestProvider"));
+
+const WALLET_KEY = "nadcab-bridge-wallet";
+let active = null;
+
 function provider() {
-  if (!window.ethereum) throw new Error("Install a browser wallet such as MetaMask to bridge");
-  return window.ethereum;
+  if (!active) throw new Error("Connect your wallet first");
+  return active;
 }
 
 async function wallet(method, params) {
@@ -62,19 +73,105 @@ async function wallet(method, params) {
     return await provider().request(params ? { method, params } : { method });
   } catch (error) {
     if (error?.code === 4001) throw new Error("You rejected the request in your wallet");
+    if (error?.code === -32002) throw new Error("Your wallet already has a connection request open. Click the wallet extension icon to approve it.");
     throw new Error(error?.data?.message || error?.message || "Wallet request failed");
   }
 }
 
+function isMobile() {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+/** Lets the user choose when more than one wallet is installed; resolves null when the picker is closed. */
+function pickWallet(choices) {
+  const dialog = $("wallets");
+  const list = $("wallet-list");
+  list.innerHTML = "";
+  return new Promise((resolve) => {
+    const finish = (choice) => {
+      dialog.removeEventListener("close", onClose);
+      if (dialog.open) dialog.close();
+      resolve(choice);
+    };
+    const onClose = () => finish(null);
+    dialog.addEventListener("close", onClose);
+    for (const choice of choices) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "wallet-option";
+      if (choice.info.icon) {
+        const icon = document.createElement("img");
+        icon.src = choice.info.icon;
+        icon.alt = "";
+        button.append(icon);
+      }
+      button.append(document.createTextNode(choice.info.name || "Browser wallet"));
+      button.addEventListener("click", () => finish(choice));
+      list.append(button);
+    }
+    dialog.showModal();
+  });
+}
+
+function noWallet() {
+  if (isMobile()) {
+    const link = `https://metamask.app.link/dapp/${location.host}${location.pathname}`;
+    say("", "");
+    const node = $("message");
+    node.className = "message is-bad";
+    node.append("No wallet in this browser. ");
+    const a = document.createElement("a");
+    a.href = link;
+    a.textContent = "Open this bridge in the MetaMask app";
+    node.append(a);
+    return;
+  }
+  say("No browser wallet found. Install MetaMask, Rabby or another EVM wallet extension, then reload this page.", "bad");
+}
+
 async function connect() {
+  const choices = [...announced.values()];
+  let choice = null;
+  if (choices.length > 1) {
+    const remembered = choices.find((item) => item.info.rdns === localStorage.getItem(WALLET_KEY));
+    choice = await pickWallet(remembered ? [remembered, ...choices.filter((item) => item !== remembered)] : choices);
+    if (!choice) return;
+  } else if (choices.length === 1) {
+    choice = choices[0];
+  } else if (window.ethereum) {
+    choice = { info: { name: "your wallet", rdns: "" }, provider: window.ethereum };
+  } else {
+    noWallet();
+    return;
+  }
+  active = choice.provider;
+  say(`Approve the connection in ${choice.info.name || "your wallet"}…`);
   const [address] = await wallet("eth_requestAccounts");
+  if (!address) throw new Error("Your wallet did not share an account");
+  if (choice.info.rdns) localStorage.setItem(WALLET_KEY, choice.info.rdns);
+  active.on?.("accountsChanged", (accounts) => setAccount(accounts[0] || ""));
+  say("");
   setAccount(address);
+}
+
+async function restoreWallet() {
+  // Give wallets a moment to announce themselves before picking the one used last time.
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const rdns = localStorage.getItem(WALLET_KEY);
+  const choice = [...announced.values()].find((item) => item.info.rdns === rdns) || (announced.size ? null : window.ethereum && { provider: window.ethereum });
+  if (!choice) return;
+  const accounts = await choice.provider.request({ method: "eth_accounts" }).catch(() => []);
+  if (!accounts?.[0]) return;
+  active = choice.provider;
+  active.on?.("accountsChanged", (next) => setAccount(next[0] || ""));
+  setAccount(accounts[0]);
 }
 
 function setAccount(address) {
   account = address ? address.toLowerCase() : "";
   $("connect").textContent = account ? short(account) : "Connect wallet";
   $("recipient").placeholder = account || "Your connected wallet";
+  if (!config) return;
   refreshBalance();
   refreshHistory();
   updateQuote();
@@ -348,6 +445,11 @@ async function refreshHistory() {
 /* ---------- boot ---------- */
 
 async function boot() {
+  // Wallet buttons work right away, even while chain reads are still loading.
+  const onConnect = () => connect().catch((error) => say(error.message, "bad"));
+  $("connect").addEventListener("click", () => (account ? null : onConnect()));
+  $("submit").addEventListener("click", () => (account && config ? submit() : onConnect()));
+
   const res = await fetch("/api/config");
   config = await res.json();
   document.title = config.name;
@@ -359,7 +461,8 @@ async function boot() {
 
   renderFrom();
   renderTo();
-  await loadAssets();
+  if (account) setAccount(account);
+  await loadAssets().catch((error) => say(`Could not read ${chainOf($("from").value)?.name || "the chain"}: ${error.message}`, "bad"));
 
   $("from").addEventListener("change", () => {
     renderTo();
@@ -386,14 +489,7 @@ async function boot() {
     renderTo(from);
     loadAssets();
   });
-  $("connect").addEventListener("click", () => connect().catch((error) => say(error.message, "bad")));
-  $("submit").addEventListener("click", submit);
-
-  if (window.ethereum) {
-    window.ethereum.on?.("accountsChanged", (accounts) => setAccount(accounts[0] || ""));
-    const accounts = await window.ethereum.request({ method: "eth_accounts" }).catch(() => []);
-    if (accounts[0]) setAccount(accounts[0]);
-  }
+  await restoreWallet().catch(() => {});
   updateQuote();
   setInterval(refreshHistory, 6000);
 }

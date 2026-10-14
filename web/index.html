@@ -69,6 +69,14 @@
       </section>
     </main>
 
+    <dialog id="wallets" class="wallets" aria-labelledby="wallets-title">
+      <form method="dialog" class="card-head">
+        <h2 id="wallets-title">Choose a wallet</h2>
+        <button type="submit" class="link" aria-label="Close">✕</button>
+      </form>
+      <div id="wallet-list" class="wallet-list"></div>
+    </dialog>
+
     <footer class="foot muted">Relayed by <code id="relayer">—</code></footer>
     <script type="module" src="/app.js"></script>
   </body>

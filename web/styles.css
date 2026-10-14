@@ -305,3 +305,59 @@ code {
     margin: -4px 0 8px;
   }
 }
+
+.wallets {
+  width: min(360px, calc(100vw - 32px));
+  padding: 20px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line), 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.wallets::backdrop {
+  background: rgba(5, 7, 12, 0.7);
+}
+
+.wallets h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.wallet-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.wallet-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wallet-option:hover {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.wallet-option img {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.message a {
+  color: var(--accent);
+}
