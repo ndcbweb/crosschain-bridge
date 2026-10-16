@@ -43,7 +43,7 @@ app.setErrorHandler((error, request, reply) => {
 });
 
 const selectors = Object.fromEntries(
-  ["bridgeNative", "bridgeToken", "wrapped", "token", "originOf", "poolLiquidity", "feeBps", "paused"].map((name) => [
+  ["bridgeNative", "bridgeToken", "wrapped", "token", "originOf", "poolLiquidity", "addLiquidity", "feeBps", "paused"].map((name) => [
     name,
     toFunctionSelector(BRIDGE_ABI.find((item) => item.type === "function" && item.name === name)),
   ])

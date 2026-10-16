@@ -368,10 +368,16 @@ async function submit() {
     renderHistory([]);
     say("Sent. Waiting for the transaction to confirm…");
     await waitReceipt(fromId, hash);
-    say(`Deposited. The relayer releases funds on ${chainOf(toId).name} after ${config.confirmations} confirmations.`, "ok");
+    say(
+      `Deposited. After ${config.confirmations} confirmations the relayer releases on ${chainOf(toId).name}` +
+        (config.mode === "lock-mint" ? ` as wrapped ${receiveSymbol(asset, toId)}` : "") +
+        `. Keep the relayer funded with gas on ${chainOf(toId).name}.`,
+      "ok"
+    );
     $("amount").value = "";
     refreshBalance();
     refreshHistory();
+    if (config.mode === "lock-mint") setTimeout(() => loadAssets().catch(() => {}), 8000);
   } catch (error) {
     say(error.message, "bad");
   } finally {
@@ -442,6 +448,69 @@ async function refreshHistory() {
   if (data.ok) renderHistory(data.transfers);
 }
 
+/* ---------- pool liquidity (pool mode only) ---------- */
+
+async function refreshPools() {
+  const card = $("pool-card");
+  if (!card || config.mode !== "pool") {
+    if (card) card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  const list = $("pool-list");
+  list.innerHTML = "";
+  for (const chain of config.chains) {
+    let liquidity = null;
+    try {
+      liquidity = decodeUint(await call(chain.chainId, chain.bridge, config.selectors.poolLiquidity));
+    } catch {
+      liquidity = null;
+    }
+    const row = document.createElement("div");
+    row.className = "pool-row";
+    const info = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = chain.name;
+    const detail = document.createElement("em");
+    detail.textContent = liquidity == null ? "Pool balance unavailable" : `${formatAmount(liquidity)} ${chain.symbol} in the pool`;
+    info.append(title, detail);
+    const input = document.createElement("input");
+    input.inputMode = "decimal";
+    input.placeholder = `Add ${chain.symbol}`;
+    input.dataset.chainId = String(chain.chainId);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn btn-ghost";
+    button.textContent = "Add liquidity";
+    button.addEventListener("click", () => addPoolLiquidity(chain, input.value).catch((error) => poolSay(error.message, "bad")));
+    row.append(info, input, button);
+    list.append(row);
+  }
+}
+
+function poolSay(text, tone = "") {
+  const node = $("pool-message");
+  if (!node) return;
+  node.textContent = text;
+  node.className = `message${tone ? ` is-${tone}` : ""}`;
+}
+
+async function addPoolLiquidity(chain, text) {
+  if (!account) return connect();
+  const amount = parseAmount(text);
+  if (!amount) throw new Error("Enter how much to add");
+  poolSay(`Switching to ${chain.name}…`);
+  await ensureChain(chain.chainId);
+  poolSay("Confirm add liquidity in your wallet…");
+  const hash = await wallet("eth_sendTransaction", [
+    { from: account, to: chain.bridge, value: hex(amount), data: config.selectors.addLiquidity },
+  ]);
+  poolSay("Waiting for confirmation…");
+  await waitReceipt(chain.chainId, hash);
+  poolSay(`Added ${formatAmount(amount)} ${chain.symbol} to the ${chain.name} pool.`, "ok");
+  refreshPools();
+}
+
 /* ---------- boot ---------- */
 
 async function boot() {
@@ -491,7 +560,9 @@ async function boot() {
   });
   await restoreWallet().catch(() => {});
   updateQuote();
+  await refreshPools().catch(() => {});
   setInterval(refreshHistory, 6000);
+  setInterval(() => refreshPools().catch(() => {}), 20000);
 }
 
 boot().catch((error) => say(`Could not load the bridge: ${error.message}`, "bad"));

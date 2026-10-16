@@ -361,3 +361,43 @@ code {
 .message a {
   color: var(--accent);
 }
+
+.pool-list {
+  display: grid;
+  gap: 10px;
+}
+
+.pool-row {
+  display: grid;
+  grid-template-columns: 1fr minmax(100px, 140px) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.pool-row strong {
+  display: block;
+  font-size: 14px;
+}
+
+.pool-row em {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 12px;
+}
+
+.pool-row input {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+}
+
+@media (max-width: 640px) {
+  .pool-row {
+    grid-template-columns: 1fr;
+  }
+}
